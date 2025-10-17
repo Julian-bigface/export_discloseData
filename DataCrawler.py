@@ -59,11 +59,11 @@ class DataCrawler:
         # 火电开机容量
         self.fire_volume = 17170
 
-    # region 信息披露爬取
     def update_cookie(self, cookie):
         """更新Cookie"""
         self.headers = {**self.headers, 'cookie': cookie}
 
+    # region 信息披露爬取
     def get_tong_diao_fu_he(self, exchange, run_time):
         """获取统调负荷数据"""
         data = {"exchange": exchange, "runTime": run_time}
@@ -209,10 +209,6 @@ class DataCrawler:
     # endregion
 
     #region 实时信息披露爬取
-    def update_cookie(self, cookie):
-        """更新Cookie"""
-        self.headers = {**self.headers, 'cookie': cookie}
-
     def get_tdfh(self, exchange, run_time):
         data = {"exchange": exchange, "runTime": run_time}
         response = requests.post(self.url_dict["统调负荷2"], headers=self.headers, json=data)
@@ -295,12 +291,10 @@ class DataCrawler:
 
         return df, None
 
+    def get_real_time_public_information_by_date_range(self, start_date,end_date, region):
 
-
-    def get_real_time_public_information_by_date_range(self, run_time, region):
-
-        start_dt = datetime.strptime(run_time, "%Y-%m-%d")
-        end_dt = datetime.strptime(run_time, "%Y-%m-%d")
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
             # 初始化一个空的DataFrame
         result_df = pd.DataFrame()
         errors = []
@@ -458,8 +452,6 @@ class DataCrawler:
         except Exception as e:
             error_msgs.append(f"警告: {run_time} 区域均价数据获取失败({str(e)})")
 
-        # # 合并数据
-        # merged_df = pd.concat([recently_df, realtime_df], axis=1)
         # 如果有错误消息，合并为一条消息
         error_msg = "\n".join(error_msgs) if error_msgs else None
 

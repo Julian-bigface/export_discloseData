@@ -23,20 +23,28 @@ class DisclosureTab_real_time:
         input_frame = ttk.LabelFrame(self.frame, text="参数设置", padding="10")
         input_frame.pack(fill=tk.X, padx=5, pady=5)
 
-        ttk.Label(input_frame, text="地区:").grid(row=1, column=0, padx=5, pady=5, sticky=tk.W)
-        ttk.Label(input_frame, text="贵州").grid(row=1, column=1, padx=5, pady=5, sticky=tk.W)
+        ttk.Label(input_frame, text="选择地区:").grid(row=1, column=0, padx=5, pady=5, sticky=tk.W)
+        self.region_combo = ttk.Combobox(input_frame, values=list(self.crawler.region_codes.keys()), state="readonly")
+        self.region_combo.grid(row=1, column=1, padx=50, pady=5, sticky=tk.W)
+        self.region_combo.current(4)
 
-        ttk.Label(input_frame, text="日期:").grid(row=2, column=0, padx=5, pady=5, sticky=tk.W)
-        self.selected_date = DateEntry(input_frame, width=12, background='darkblue',
-                              foreground='white', borderwidth=2, date_pattern='yy-mm-dd')
-        self.selected_date.grid(row=2, column=1, padx=5, pady=5, sticky=tk.W)
+        ttk.Label(input_frame, text="开始日期:").grid(row=2, column=0, padx=5, pady=5, sticky=tk.W)
+        self.start_date = DateEntry(input_frame, width=12, background='darkblue',
+                                    foreground='white', borderwidth=2, date_pattern='yy-mm-dd')
+        self.start_date.grid(row=2, column=1, padx=50, pady=5, sticky=tk.W)
+
+        ttk.Label(input_frame, text="结束日期:").grid(row=2, column=2, padx=5, pady=5, sticky=tk.W)
+        self.end_date = DateEntry(input_frame, width=12, background='darkblue',
+                                  foreground='white', borderwidth=3, date_pattern='yy-mm-dd')
+        self.end_date.grid(row=2, column=4, padx=5, pady=5, sticky=tk.W)
 
         # 设置默认日期为明天（保持原逻辑）
         today = datetime.today()
-        self.selected_date.set_date((today + timedelta(days=1)).strftime('%y-%m-%d'))
+        self.start_date.set_date((today + timedelta(days=1)).strftime('%y-%m-%d'))
+        self.end_date.set_date((today + timedelta(days=1)).strftime('%y-%m-%d'))
 
         button_frame = ttk.Frame(input_frame)
-        button_frame.grid(row=4, column=0, columnspan=4, pady=10)
+        button_frame.grid(row=4, column=0, columnspan=3, pady=10)
 
         self.fetch_button = ttk.Button(button_frame, text="开始爬取", command=self.start_crawl)
         self.fetch_button.pack(side=tk.LEFT, padx=5)
@@ -94,8 +102,12 @@ class DisclosureTab_real_time:
             return
         self.crawler.update_cookie(cookie)
 
-        region = "贵州"
-        selected_date = self.selected_date.get_date().strftime("%Y-%m-%d")
+        region = self.region_combo.get()
+        start_date = self.start_date.get_date().strftime("%Y-%m-%d")
+        end_date = self.end_date.get_date().strftime("%Y-%m-%d")
+        if start_date > end_date:
+            messagebox.showerror("日期错误", "结束日期不能早于开始日期")
+            return
 
         self.fetch_button.config(state=tk.DISABLED)
         self.save_button.config(state=tk.DISABLED)
@@ -105,11 +117,11 @@ class DisclosureTab_real_time:
 
         self.data_df = pd.DataFrame()
         self.log(f"开始爬取 {region} 地区 {selected_date}  的数据...")
-        thread = threading.Thread(target=self.crawl_data, args=(selected_date, region), daemon=True)
+        thread = threading.Thread(target=self.crawl_data, args=(start_date,end_date,region), daemon=True)
         thread.start()
 
-    def crawl_data(self, selected_date, region):
-        for result, is_final in self.crawler.get_real_time_public_information_by_date_range(selected_date, region):
+    def crawl_data(self, start_date,end_date, region):
+        for result, is_final in self.crawler.get_real_time_public_information_by_date_range(start_date,end_date, region):
             if isinstance(result, pd.DataFrame):
                 self.data_df = result
                 self.frame.after(0, self.update_results)

@@ -7,6 +7,10 @@ from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+from component.data_save_button import SaveButton
+from component.logger import logger
+from component.date_picker import DatePicker
+
 class DisclosureTab:
     def __init__(self, parent, crawler, cookie_var):
         self.crawler = crawler
@@ -19,59 +23,53 @@ class DisclosureTab:
         self.create_log_section()
         self.create_result_section()
 
+    #region 创建组件
     def create_input_section(self):
-        input_frame = ttk.LabelFrame(self.frame, text="参数设置", padding="10")
+        input_frame = ttk.LabelFrame(self.frame, text="参数设置", padding="10",labelanchor='nw')
         input_frame.pack(fill=tk.X, padx=5, pady=5)
 
-        ttk.Label(input_frame, text="选择地区:").grid(row=1, column=0, padx=5, pady=5, sticky=tk.W)
+        ttk.Label(input_frame, text="选择地区:").grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
         self.region_combo = ttk.Combobox(input_frame, values=list(self.crawler.region_codes.keys()), state="readonly")
-        self.region_combo.grid(row=1, column=1, padx=5, pady=5, sticky=tk.W)
+        self.region_combo.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
         self.region_combo.current(4)
 
-        ttk.Label(input_frame, text="开始日期:").grid(row=2, column=0, padx=5, pady=5, sticky=tk.W)
-        self.start_date = DateEntry(input_frame, width=12, background='darkblue',
-                                    foreground='white', borderwidth=2, date_pattern='yy-mm-dd')
-        self.start_date.grid(row=2, column=1, padx=5, pady=5, sticky=tk.W)
+        # 使用日期选择组件
+        self.date_picker = DatePicker(
+            input_frame,
+            label_text="日期选择：",
+            mode="range",  # 默认范围模式
+            on_change=self._on_date_change  # 日期变化回调
+        )
+        self.date_picker.grid(row=1, column=0, columnspan=4, sticky=tk.NW, padx=5, pady=5)
 
-        ttk.Label(input_frame, text="结束日期:").grid(row=2, column=2, padx=5, pady=5, sticky=tk.W)
-        self.end_date = DateEntry(input_frame, width=12, background='darkblue',
-                                  foreground='white', borderwidth=2, date_pattern='yy-mm-dd')
-        self.end_date.grid(row=2, column=3, padx=5, pady=5, sticky=tk.W)
-
-        today = datetime.today()
-        self.start_date.set_date((today + timedelta(days=1)).strftime('%y-%m-%d'))
-        self.end_date.set_date((today + timedelta(days=1)).strftime('%y-%m-%d'))
-
-        ttk.Label(input_frame, text="火电开机容量(MW):").grid(row=3, column=0, padx=5, pady=5, sticky=tk.W)
+        ttk.Label(input_frame, text="火电开机容量(MW):").grid(row=2, column=0, padx=5, pady=5, sticky=tk.W)
         self.fire_volume = tk.StringVar(value="17170")
         fire_entry = ttk.Entry(input_frame, textvariable=self.fire_volume, width=10)
-        fire_entry.grid(row=3, column=1, padx=5, pady=5, sticky=tk.W)
+        fire_entry.grid(row=2, column=1, padx=5, pady=5, sticky=tk.W)
 
         button_frame = ttk.Frame(input_frame)
-        button_frame.grid(row=4, column=0, columnspan=4, pady=10)
+        button_frame.grid(row=3, column=0, columnspan=4, pady=10)
 
         self.fetch_button = ttk.Button(button_frame, text="开始爬取", command=self.start_crawl)
         self.fetch_button.pack(side=tk.LEFT, padx=5)
 
-        self.save_button = ttk.Button(button_frame, text="保存数据", command=self.save_data, state=tk.DISABLED)
+        self.save_button = SaveButton(
+            button_frame
+            ,get_data_func = self._get_save_data
+            ,get_filename_func = self._generate_filename
+            ,log_func = self._log
+        )
         self.save_button.pack(side=tk.LEFT, padx=5)
 
         self.plot_button = ttk.Button(button_frame, text="显示图表", command=self.show_plot, state=tk.DISABLED)
         self.plot_button.pack(side=tk.LEFT, padx=5)
 
-        self.clear_button = ttk.Button(button_frame, text="清除日志", command=self.clear_log)
-        self.clear_button.pack(side=tk.LEFT, padx=5)
-
     def create_log_section(self):
-        log_frame = ttk.LabelFrame(self.frame, text="日志信息", padding="10")
-        log_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-
-        self.log_area = scrolledtext.ScrolledText(log_frame, height=6)
-        self.log_area.pack(fill=tk.BOTH, expand=True)
-        self.log_area.config(state=tk.DISABLED)
-
-        self.log("欢迎使用电力市场信息披露爬取工具")
-        self.log("请设置参数后点击'开始爬取'按钮")
+        """创建日志组件"""
+        self.logger = logger(self.frame, title="日志信息", height=6)
+        self.logger.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.logger.info("欢迎使用电力市场信息披露爬取工具")
+        self.logger.info("请设置参数后点击'开始爬取'按钮")
 
     def create_result_section(self):
         result_frame = ttk.LabelFrame(self.frame, text="信息披露数据预览", padding="10")
@@ -90,18 +88,40 @@ class DisclosureTab:
         self.result_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-    def log(self, message):
-        self.log_area.config(state=tk.NORMAL)
-        self.log_area.insert(tk.END, f"{datetime.now().strftime('%H:%M:%S')} - {message}\n")
-        self.log_area.config(state=tk.DISABLED)
-        self.log_area.see(tk.END)
+    def _on_date_change(self):
+        """日期变化回调"""
+        # 可以在这里添加日期变化时的逻辑
+        if self.date_picker.is_valid():
+            start_date, end_date = self.date_picker.get_dates()
+            self.logger.info(f"日期已更新: {self.date_picker.get_date_description()}")
 
-    def clear_log(self):
-        self.log_area.config(state=tk.NORMAL)
-        self.log_area.delete(1.0, tk.END)
-        self.log_area.config(state=tk.DISABLED)
-        self.log("日志已清除")
+    #region 保存按钮
+    def _get_save_data(self):
+        """获取要保存的数据,提供给保存按钮"""
+        return {
+            '信息披露': self.data_df,
+            '西电东送': self.powerData_WestToEast_df
+        }
 
+    def _generate_filename(self):
+        """生成文件名，提供给保存按钮"""
+        region = self.region_combo.get()
+        start_date_str, end_date_str = self.date_picker.get_dates_for_filename()
+
+        if start_date_str == end_date_str:
+            return f"{region}_{start_date_str}_披露数据"
+        else:
+            return f"{region}_{start_date_str}_to_{end_date_str}_披露数据"
+
+    def _log(self,msg):
+        """日志函数回调,提供给保存按钮"""
+        self.logger.info(msg)
+
+    #endregion
+
+    #endregion
+
+    #region 爬取数据
     def start_crawl(self):
         cookie = "CAMSID=" + self.cookie_var.get().strip()
         if not cookie:
@@ -110,12 +130,13 @@ class DisclosureTab:
         self.crawler.update_cookie(cookie)
 
         region = self.region_combo.get()
-        start_date = self.start_date.get_date().strftime("%Y-%m-%d")
-        end_date = self.end_date.get_date().strftime("%Y-%m-%d")
 
-        if start_date > end_date:
+        # 使用日期组件获取日期
+        if not self.date_picker.is_valid():
+            self.logger.error("结束日期不能早于开始日期")
             messagebox.showerror("日期错误", "结束日期不能早于开始日期")
             return
+        start_date, end_date = self.date_picker.get_dates()
 
         try:
             self.crawler.fire_volume = float(self.fire_volume.get())
@@ -131,25 +152,27 @@ class DisclosureTab:
             self.result_tree.delete(item)
 
         self.data_df = pd.DataFrame()
-        self.log(f"开始爬取 {region} 地区 {start_date} 至 {end_date} 的数据...")
-        thread = threading.Thread(target=self.crawl_data, args=(start_date, end_date, region), daemon=True)
+        self.logger.info(f"开始爬取 {region} 地区 {start_date} 至 {end_date} 的数据...")
+        thread = threading.Thread(target=self._crawl_data, args=(start_date, end_date, region), daemon=True)
         thread.start()
 
-    def crawl_data(self, start_date, end_date, region):
+    def _crawl_data(self, start_date, end_date, region):
+        """根据时间范围爬取范围"""
         for result, W2E_result, is_final in self.crawler.get_public_information_by_date_range(start_date, end_date, region):
             if isinstance(result, pd.DataFrame):
                 self.data_df = result
                 self.powerData_WestToEast_df = W2E_result
-                self.frame.after(0, self.update_results)
+                self.frame.after(0, self._update_results)
             elif isinstance(result, str) and is_final:
-                self.log(result)
+                self.logger.error(result)
                 self.frame.after(0, lambda: self.fetch_button.config(state=tk.NORMAL))
             else:
-                self.log(result)
+                self.logger.error(result)
         if self.data_df.empty:
             self.frame.after(0, lambda: self.fetch_button.config(state=tk.NORMAL))
 
-    def update_results(self):
+    def _update_results(self):
+        """更新爬取结果"""
         for item in self.result_tree.get_children():
             self.result_tree.delete(item)
         sample_df = self.data_df.head(100) if len(self.data_df) > 100 else self.data_df
@@ -158,40 +181,11 @@ class DisclosureTab:
                       row.get('正备用', ''), row.get('负备用', ''), row.get('火电竞价空间', ''), row.get('负荷率', ''), row.get('西电东送', ''))
             self.result_tree.insert("", tk.END, values=values)
 
-        self.save_button.config(state=tk.NORMAL)
+        self.save_button.update_state()
         self.plot_button.config(state=tk.NORMAL)
         self.fetch_button.config(state=tk.NORMAL)
+    #endregion
 
-    def save_data(self):
-        try:
-            if self.data_df.empty:
-                messagebox.showerror("保存错误", "没有数据可保存")
-                return
-            region = self.region_combo.get()
-            start_date = self.start_date.get_date().strftime("%Y%m%d")
-            end_date = self.end_date.get_date().strftime("%Y%m%d")
-            file_path = filedialog.asksaveasfilename(
-                initialfile=f"{region}_{start_date}_to_{end_date}_披露数据.xlsx",
-                defaultextension=".xlsx",
-                filetypes=[("Excel文件", "*.xlsx"), ("所有文件", "*.*")]
-            )
-            if not file_path:
-                return
-            with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
-                self.data_df.to_excel(writer, sheet_name='信息披露', index=True, index_label='时间')
-                self.powerData_WestToEast_df.to_excel(writer, sheet_name='西电东送', index=True, index_label='区域')
-            self.log(f"数据已保存到: {file_path}")
-        except PermissionError:
-            error_msg = f"错误：文件可能正在被其他程序占用，请关闭文件后重试\n{file_path}"
-            messagebox.showerror("保存失败", error_msg)
-            self.log(error_msg)
-
-        except Exception as e:
-            error_msg = f"保存过程中发生错误: {str(e)}"
-            messagebox.showerror("保存失败", error_msg)
-            self.log(error_msg)
-            # 记录完整错误信息（调试用）
-            self.log(f"完整错误信息: {traceback.format_exc()}")
 
     def show_plot(self):
         if self.data_df.empty:
@@ -235,4 +229,4 @@ class DisclosureTab:
         canvas = FigureCanvasTkAgg(fig, master=plot_window)
         canvas.draw()
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-        self.log("图表已显示")
+        self.logger.info("图表已显示")

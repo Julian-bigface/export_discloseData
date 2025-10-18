@@ -204,7 +204,7 @@ class DataCrawler:
             yield result_df,powerData_W2E_result_df,True
         else:
             yield "没有获取到任何有效数据",powerData_W2E_result_df, True
-            yield "\n".join(errors),powerData_W2E_result_df, True
+            # yield "\n".join(errors),powerData_W2E_result_df, True
 
     # endregion
 

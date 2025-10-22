@@ -116,7 +116,7 @@ class DisclosureTab_real_time:
             self.result_tree.delete(item)
 
         self.data_df = pd.DataFrame()
-        self.log(f"开始爬取 {region} 地区 {selected_date}  的数据...")
+        self.log(f"开始爬取 {region} 地区 {start_date} 至 {end_date} 的数据...")
         thread = threading.Thread(target=self.crawl_data, args=(start_date,end_date,region), daemon=True)
         thread.start()
 
@@ -151,9 +151,18 @@ class DisclosureTab_real_time:
                 messagebox.showerror("保存错误", "没有数据可保存")
                 return
             region = "贵州"
-            selected_date = self.selected_date.get_date().strftime("%Y%m%d")
+
+            start_date_str = self.start_date.get_date().strftime("%Y-%m-%d")
+            end_date_str = self.end_date.get_date().strftime("%Y-%m-%d")
+
+            if start_date_str == end_date_str:
+                date_file_name = f"{region}_{start_date_str}_披露数据.xlsx"
+            else:
+                date_file_name = f"{region}_{start_date_str}_to_{end_date_str}_披露数据.xlsx"
+
+
             file_path = filedialog.asksaveasfilename(
-                initialfile=f"{region}_{selected_date}_披露数据.xlsx",
+                initialfile=date_file_name,
                 defaultextension=".xlsx",
                 filetypes=[("Excel文件", "*.xlsx"), ("所有文件", "*.*")]
             )
